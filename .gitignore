@@ -1,0 +1,6 @@
+docs/research_plan.md
+data/
+*.gguf
+*.safetensors
+__pycache__/
+.env
