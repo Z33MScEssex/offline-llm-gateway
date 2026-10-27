@@ -44,7 +44,7 @@ All services run in Docker on an internal network with no outbound route.
 | 5 | Make it offline: internal network, pre-loaded model weights, a test that proves no outbound traffic | Done 2026-10-26 |
 | 6 | Monitoring: Prometheus metrics for latency, throughput and errors | Done 2026-10-26 |
 | 7 | Load test: how many requests before latency degrades, and does the rate limit hold | Done 2026-10-26 |
-| 8 | CI: GitHub Actions runs the tests and builds the images on every push | Workflow written and every step passed locally; first GitHub run pending |
+| 8 | CI: GitHub Actions runs the tests and builds the images on every push | Done 2026-10-27: passes on GitHub in about 3 minutes |
 | 9 | Stretch: run the same stack on a local Kubernetes cluster (kind or k3d) | Done 2026-10-26 as a local proof of concept (limits listed in results) |
 | 10 | Runbook: how to start, check, troubleshoot and recover the service | Done 2026-10-26 (`docs/runbook.md`) |
 
