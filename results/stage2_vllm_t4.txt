@@ -1,0 +1,54 @@
+Stage 2: vLLM on a Colab T4 GPU, same load test as stage 7
+Run 2026-10-27 on Google Colab, Tesla T4 (15360 MiB), driver 580.82.07, vLLM 0.32.0, Qwen/Qwen3-1.7B.
+Code: the cells of colab/vllm_gpu.ipynb, run as one script. Raw numbers: stage2_vllm_t4.json.
+
+Same prompt, 32-token cap, thinking off, max(40, 8 x users) requests per level, 2 warm-ups,
+two rounds and the same degradation rule as stage 7. Levels 32 and 64 were added before running.
+
+Start-up
+  Ready after 210 s (download, load, compile and warm-up; the warm-up alone took 88 s).
+  The model ships in bf16. The T4 cannot run bf16, so vLLM cast it to fp16 by itself
+  ("Casting torch.bfloat16 to torch.float16" in the log). No --dtype flag was needed.
+  KV cache: 84,016 tokens, which vLLM reports as room for about 20 requests at the full
+  4,096-token length. These requests are about 50 tokens each, so far more fit.
+  Thinking off works: "Say hello in five words." gave 'Hello, world!', 5 tokens.
+
+Results (round 1; round 2 within 6% except the first level, see below)
+  users  requests  p50 s  p95 s  req/s  tokens/s  GPU busy %  GPU memory MiB
+      1        40   0.57   0.67    1.7        55          98           13271
+      2        40   0.57   0.58    3.5       112          99           13271
+      4        40   0.60   0.61    6.6       213          99           13271
+      8        64   0.65   0.67   12.2       391          97           13271
+     16       128   0.77   0.80   20.6       660         100           13271
+     32       256   1.02   1.09   30.8       986         100           13271
+     64       512   1.19   1.32   51.6      1652         100           13323
+  No errors at any level. VERDICT: no degradation up to 64 users, in both rounds.
+
+Against the laptop CPU (stage 7, Ollama, one request at a time)
+  One user:   0.57 s vs 1.83 s per answer, 55 vs 17 tokens/s, about 3x faster.
+  16 users:   p95 0.80 s vs 32 s; 20.6 vs 0.53 requests/s, about 39x the throughput.
+  64 users:   51.6 requests/s. The CPU stack was not run that high.
+
+What it means
+  Throughput roughly doubles every time the users double up to 16, then keeps climbing
+  (+49% at 32, +68% at 64) while p95 latency only goes from 0.67 s to 1.32 s.
+  This is batching. vLLM puts every waiting request into the same pass over the model, so
+  16 requests cost little more than 1. Ollama on the CPU ran them one after another, which
+  is why its throughput stayed flat and its latency grew with each user.
+  The ceiling was not reached. Finding it would need a level above 64.
+
+Readings to treat with care
+  GPU busy % is about 98 even at one user. nvidia-smi counts the share of time any GPU
+  work is running, not how much of the GPU is in use, so it cannot show spare capacity.
+  Throughput is the better measure of headroom here.
+  GPU memory is flat at about 13.3 GB at every level. vLLM reserves most of the card for
+  its KV cache when it starts, so memory use shows the reservation, not the load.
+  Round 2, 1 user was slower than round 1 (p50 0.86 s vs 0.57 s, 1.1 vs 1.7 req/s).
+  Every other level matched round 1 within 6%. The cause was not measured. It came straight
+  after the 64-user level and it does not change the verdict.
+
+Limits
+  This compares a GPU with batching against a laptop CPU without it, so the gain mixes
+  hardware and software. It does not say how much each one is worth.
+  vLLM was called directly, not through the LiteLLM gateway, and Colab is online. Putting
+  vLLM behind the gateway on an offline GPU machine has not been done.

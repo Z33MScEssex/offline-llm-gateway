@@ -38,7 +38,7 @@ All services run in Docker on an internal network with no outbound route.
 | # | Stage | Status |
 |---|---|---|
 | 1 | Serve a small model locally with Ollama and call its API | Done 2026-10-26 |
-| 2 | Serve a model with vLLM on a GPU (Colab) and measure GPU use | Not started |
+| 2 | Serve a model with vLLM on a GPU (Colab) and measure GPU use | Done 2026-10-27 on a Colab T4 (vLLM called directly, not yet behind the gateway) |
 | 3 | Put a LiteLLM gateway in front: routing, per-user keys, rate limits | Done 2026-10-26 |
 | 4 | Package everything with Docker Compose | Done 2026-10-26 |
 | 5 | Make it offline: internal network, pre-loaded model weights, a test that proves no outbound traffic | Done 2026-10-26 |
@@ -124,6 +124,8 @@ Measured numbers only. Nothing is listed until it has been run.
 | Stage | What was measured | Result |
 |---|---|---|
 | 1 | qwen3:1.7b on CPU, Ollama direct, warm | 18.6 tokens per second, 2.2 s for a one-sentence answer |
+| 2 | Same model with vLLM on a Colab T4 GPU, same load test, 1 to 64 users | No degradation up to 64 users in either round. 1 user: 0.57 s per answer, 55 tokens/s (about 3x the laptop CPU). 64 users: 51.6 req/s with p95 1.3 s. At 16 users, 39x the CPU's throughput, because vLLM batches waiting requests into one pass |
+| 2 | vLLM on a T4, model shipped in bf16 | The T4 cannot run bf16; vLLM switched to fp16 by itself, no flag needed |
 | 3 | Gateway acceptance tests | 4 of 4 pass: valid key answered, bad key 401, wrong model refused, over the limit 429 |
 | 3 | Rate limit, key set to 2 requests per minute | 200, 200, then 429 |
 | 3 | Qwen3 thinking on vs off, same five-word prompt | 464 tokens in 29 s vs 7 tokens in 0.75 s, so it is off by default |
