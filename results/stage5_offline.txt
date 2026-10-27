@@ -1,0 +1,33 @@
+Stage 5: offline, measured 2026-10-26 (Docker 29.9.2)
+
+Design found by testing first, with a throwaway container:
+  internal network + published port ............ host gets no answer (Docker cannot publish from an internal network)
+  internal network + container's own address ... host gets HTTP 200
+  from inside: 1.1.1.1:443, 8.8.8.8:53 ......... "Network is unreachable"
+  from inside: DNS for pypi.org ................ "Temporary failure in name resolution"
+  from inside: the home router (LAN) ........... "Network is unreachable"
+So every service sits only on an internal network, and the gateway gets a fixed address
+(172.30.0.10) that the laptop can reach and nothing beyond the laptop can.
+
+scripts/check_offline.sh (TCP connect to 1.1.1.1:443 from each container, with bash):
+  control  normal network      reached the internet  (probe works)
+  ok       db  cannot reach the internet
+  ok       litellm  cannot reach the internet
+  ok       ollama  cannot reach the internet
+  ok       laptop -> gateway   answers (HTTP 200)
+  PASS: offline, and the gateway still answers
+Each "cannot" was checked to be "Network is unreachable", not a missing shell.
+
+docker compose run --rm tests (inside the offline network): 9 passed in 4.87 s
+  4 gateway tests (stage 3) + 3 public addresses blocked + outside DNS blocked + internal DNS works (control)
+Same offline tests on a normal network: 5 of 5 FAIL, so they really detect internet access.
+On the laptop: 4 passed, 5 skipped (the offline tests only run inside the stack).
+
+LiteLLM log after a full test run: no failed fetches or timeouts. The only errors are the three
+refusals the tests cause on purpose (bad key, wrong model, 429).
+
+Clean copy (10 publishable files, no .env, fresh database), four README commands: exit 0 in 51 s.
+
+Not tested: reaching the gateway from another machine on the LAN (should fail; no second machine
+available, the Pi is offline). Not covered: the images are pulled from the internet on first start;
+a fully air-gapped box would need docker save / docker load.

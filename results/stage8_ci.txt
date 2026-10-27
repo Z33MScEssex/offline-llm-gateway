@@ -1,0 +1,29 @@
+Stage 8: CI workflow, prepared 2026-10-26. NOT YET RUN ON GITHUB (not committed or pushed: Zee's step).
+
+.github/workflows/ci.yml: on every push and pull request, checkout, restore the cached model (or
+download it once), create .env, docker compose up -d --wait, run the 12 tests inside the offline
+network, run scripts/check_offline.sh. Logs printed if anything fails.
+
+Local run of every `run:` step, in order, in a clean copy with an EMPTY model folder:
+  exit 0 in 287 s (most of it the 1.3 GB model download)
+  12 passed; db, litellm, ollama, prometheus all "Network is unreachable"; gateway answers
+Wait-loop fix tested both ways: Ollama up -> exit 0; Ollama never starts -> "did not start", exit 1.
+
+Read-only second review (6 points) and what was done:
+  1 host reaching 172.30.0.10 on GitHub's runner ...... not changed. Docker documents host access to
+    internal networks; it is not a laptop quirk. Untested on the runner until the first push.
+  2 model pull could fail silently .................... mostly wrong: GitHub's default shell is
+    `bash -e` (workflow syntax page), so a failed pull fails the step. The wait loop could time out
+    silently, so it now fails explicitly.
+  3 fixed cache key ................................... rejected: fixed on purpose, so every run
+    tests the same weights. Comment added.
+  4 offline control needs internet .................... rejected: that is the design. The control
+    proves the probe can see the internet when it is there.
+  5 README did not explain CI's model step ............ accepted, README "CI" section added.
+  6 runner has Compose 2.38.2 / Docker 28.0.4 ......... verified from the runner image inventory.
+    Testing Compose 2.38.2 locally was blocked (it needs downloading and running an outside binary).
+    Risk is contained: if the older Compose ignores the secret's owner settings, the file is
+    world-readable inside the container and Prometheus can still read it; if it could not,
+    test_metrics.py fails, so CI cannot pass green by mistake.
+
+To do on first push: watch the run, and confirm steps 1 and 6 on the real runner.

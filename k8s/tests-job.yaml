@@ -1,0 +1,32 @@
+# Stage 9 acceptance: the stage 3 gateway tests and the offline tests, run as a Job inside the cluster.
+# Pattern from the Kubernetes docs example job.yaml. Prometheus is not deployed here, so the
+# metrics tests are not run.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tests
+  namespace: llm-gateway
+spec:
+  template:
+    spec:
+      containers:
+      - name: tests
+        image: offline_llm_gateway-tests:latest  # built by compose, loaded into the cluster
+        imagePullPolicy: Never
+        workingDir: /tests
+        command: ["python", "-m", "pytest", "-v", "-p", "no:cacheprovider", "test_gateway.py", "test_offline.py"]
+        env:
+        - {name: GATEWAY_URL, value: "http://litellm:4000"}
+        - {name: OFFLINE_EXPECTED, value: "1"}
+        - name: LITELLM_MASTER_KEY
+          valueFrom:
+            secretKeyRef: {name: litellm-env, key: LITELLM_MASTER_KEY}
+        volumeMounts:
+        - mountPath: /tests
+          name: tests
+      volumes:
+      - name: tests
+        configMap:
+          name: tests  # tests/*.py, made by scripts/k8s_up.sh
+      restartPolicy: Never
+  backoffLimit: 0  # one try: a test failure is a result, not something to retry

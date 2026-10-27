@@ -1,0 +1,56 @@
+# CI: on every push and pull request, bring the whole stack up from a clean checkout, run the
+# acceptance tests inside it, and prove it is offline. Same three commands as the README.
+# Patterns from actions/checkout and actions/cache READMEs and GitHub's workflow syntax page.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  stack:
+    runs-on: ubuntu-latest  # GitHub's runner has Docker and Compose already
+    timeout-minutes: 30  # a hung model download or health check fails the run instead of hanging
+    env:
+      OLLAMA_MODELS_DIR: ${{ github.workspace }}/ci_models  # the compose file mounts this read-only into Ollama
+    steps:
+      - uses: actions/checkout@v7  # the repo, exactly as pushed
+
+      - name: Cache the model weights
+        id: cache-model
+        uses: actions/cache@v6
+        with:
+          path: ci_models
+          # Fixed on purpose: every run tests the same weights. Change it to move to new ones.
+          key: ${{ runner.os }}-ollama-0.30.6-qwen3-1.7b
+
+      - name: Download the model (only when the cache is empty)
+        if: steps.cache-model.outputs.cache-hit != 'true'
+        # The runner has no local Ollama, so pull once with the same Ollama image the stack uses.
+        # This step is online on purpose: it plays the part of carrying the weights to the box.
+        run: |
+          mkdir -p ci_models
+          docker run -d --name puller -v "$PWD/ci_models:/root/.ollama/models" ollama/ollama:0.30.6
+          # GitHub's default shell is `bash -e`, so a failed pull fails the step. The wait loop
+          # would not, so it fails explicitly if Ollama never answers.
+          ready=0
+          for i in $(seq 1 30); do docker exec puller ollama list >/dev/null 2>&1 && { ready=1; break; }; sleep 1; done
+          [ "$ready" = 1 ] || { echo "Ollama did not start in 30 s"; docker logs puller; exit 1; }
+          docker exec puller ollama pull qwen3:1.7b
+          docker rm -f puller
+
+      - name: Create .env with fresh random keys
+        run: printf 'LITELLM_MASTER_KEY=sk-%s\nLITELLM_SALT_KEY=sk-%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > .env
+
+      - name: Start the stack and wait until every service is healthy
+        run: docker compose up -d --wait
+
+      - name: Acceptance tests, run inside the offline network
+        run: docker compose run --rm tests  # builds the test image, then gateway, metrics and offline tests
+
+      - name: Prove every service is offline
+        run: scripts/check_offline.sh
+
+      - name: Show service logs if anything failed
+        if: failure()
+        run: docker compose logs --tail 200

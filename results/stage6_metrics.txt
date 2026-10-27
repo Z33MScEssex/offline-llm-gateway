@@ -1,0 +1,31 @@
+Stage 6: Prometheus metrics from the gateway, measured 2026-10-26
+Stack: + prom/prometheus v3.15.0 on the offline network at 172.30.0.20, scraping litellm:4000 every 5 s
+
+Licence: request count, failed requests and latency histograms all work on the open-source
+LiteLLM image. The Prometheus page marks only "Managed Batch Metrics" as enterprise-only.
+
+/metrics protection (LiteLLM default since v1.85.0, kept on):
+  with the key ...... answers (307 redirect to /metrics/, which Prometheus follows)
+  without a key ..... 401
+  The key reaches Prometheus as a compose secret file (/run/secrets/litellm_master_key, owner
+  nobody, mode 0400), made from .env at start-up. It is never written into the repo.
+  Compose warns uid/gid/mode are "ignored outside Swarm mode"; measured: they ARE applied
+  (without them the file is root-owned and readable by every user in the container).
+
+One labelled key, one good request + one refused request, then asked Prometheus:
+  litellm_proxy_total_requests_metric_total ...... 2  (status_code 200 and 403)
+  litellm_proxy_failed_requests_metric_total ..... 1  (exception_status 403)
+  litellm_request_total_latency_metric_count ..... 1  (only the good request reaches the model)
+  litellm_request_total_latency_metric_sum ....... 2.59 s
+
+docker compose run --rm tests: 12 passed (4 gateway + 3 metrics + 5 offline)
+Clean copy, four README commands, five services: exit 0 in 66 s
+
+BUG FOUND AND FIXED in scripts/check_offline.sh: the Prometheus image has no bash, so the probe
+could not start, and the old script still printed "prometheus cannot reach the internet". It
+now runs the probe from a helper container joined to each service's network
+(--network container:<id>), and counts a service as blocked only on "Network is unreachable".
+Any other outcome is a FAIL. Stage 5's result stands: db, litellm and ollama were each checked
+by hand at the time to be "Network is unreachable".
+Proof the fixed check catches a leak: Prometheus connected to Docker's normal network on purpose
+-> "FAIL prometheus reached the internet", exit 1. Disconnected -> PASS.

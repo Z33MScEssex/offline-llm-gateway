@@ -1,0 +1,235 @@
+{
+  "ollama_num_parallel": "1",
+  "date": "2026-10-26 22:30",
+  "prompt": "Count from 1 to 20, separated by spaces.",
+  "max_tokens": 32,
+  "rounds": [
+    {
+      "round": 1,
+      "key_alias": "load-p1-r1-220857",
+      "levels": [
+        {
+          "users": 1,
+          "requests": 40,
+          "ok": 40,
+          "errors": 0,
+          "status_codes": [
+            200
+          ],
+          "p50_s": 1.825457687024027,
+          "p95_s": 2.0722558279521763,
+          "p95_sample_size": 40,
+          "requests_per_s": 0.5329640859373336,
+          "tokens_per_s": 17.054850749994674,
+          "mean_tokens": 32.0,
+          "wall_s": 75.05196138995234,
+          "ollama_memory": "1.801GiB / 15.34GiB",
+          "client_mean_s": 1.8762008373538266,
+          "prometheus_mean_s": 1.867567025,
+          "prometheus_count": 40.0,
+          "prometheus_count_matches": true
+        },
+        {
+          "users": 2,
+          "requests": 40,
+          "ok": 40,
+          "errors": 0,
+          "status_codes": [
+            200
+          ],
+          "p50_s": 3.4238460970227607,
+          "p95_s": 3.975021631922573,
+          "p95_sample_size": 40,
+          "requests_per_s": 0.5665683103418805,
+          "tokens_per_s": 18.130185930940176,
+          "mean_tokens": 32.0,
+          "wall_s": 70.6004894200014,
+          "ollama_memory": "1.802GiB / 15.34GiB",
+          "client_mean_s": 3.483783715727623,
+          "prometheus_mean_s": 3.474092125,
+          "prometheus_count": 40.0,
+          "prometheus_count_matches": true
+        },
+        {
+          "users": 4,
+          "requests": 40,
+          "ok": 40,
+          "errors": 0,
+          "status_codes": [
+            200
+          ],
+          "p50_s": 6.7987069295486435,
+          "p95_s": 7.677140334970318,
+          "p95_sample_size": 40,
+          "requests_per_s": 0.5734123450669841,
+          "tokens_per_s": 18.349195042143492,
+          "mean_tokens": 32.0,
+          "wall_s": 69.75782845297363,
+          "ollama_memory": "1.802GiB / 15.34GiB",
+          "client_mean_s": 6.703742785172653,
+          "prometheus_mean_s": 6.692948049999998,
+          "prometheus_count": 40.0,
+          "prometheus_count_matches": true
+        },
+        {
+          "users": 8,
+          "requests": 64,
+          "ok": 64,
+          "errors": 0,
+          "status_codes": [
+            200
+          ],
+          "p50_s": 14.482976325030904,
+          "p95_s": 16.46659648604691,
+          "p95_sample_size": 64,
+          "requests_per_s": 0.5505362100331515,
+          "tokens_per_s": 17.617158721060846,
+          "mean_tokens": 32.0,
+          "wall_s": 116.25030076794792,
+          "ollama_memory": "1.804GiB / 15.34GiB",
+          "client_mean_s": 13.741154762701626,
+          "prometheus_mean_s": 13.728419484375,
+          "prometheus_count": 64.0,
+          "prometheus_count_matches": true
+        },
+        {
+          "users": 16,
+          "requests": 128,
+          "ok": 128,
+          "errors": 0,
+          "status_codes": [
+            200
+          ],
+          "p50_s": 30.206924891506787,
+          "p95_s": 32.22748512402177,
+          "p95_sample_size": 128,
+          "requests_per_s": 0.532337252147631,
+          "tokens_per_s": 17.03479206872419,
+          "mean_tokens": 32.0,
+          "wall_s": 240.44907524995506,
+          "ollama_memory": "1.813GiB / 15.34GiB",
+          "client_mean_s": 28.398008569422927,
+          "prometheus_mean_s": 28.382608335937494,
+          "prometheus_count": 128.0,
+          "prometheus_count_matches": true
+        }
+      ],
+      "degradation_point": 2,
+      "why": "throughput +6%, p95 latency +92% vs 1 users"
+    },
+    {
+      "round": 2,
+      "key_alias": "load-p1-r2-222002",
+      "levels": [
+        {
+          "users": 1,
+          "requests": 40,
+          "ok": 40,
+          "errors": 0,
+          "status_codes": [
+            200
+          ],
+          "p50_s": 1.8070395304821432,
+          "p95_s": 2.0193343409337103,
+          "p95_sample_size": 40,
+          "requests_per_s": 0.5438222334273356,
+          "tokens_per_s": 17.40231146967474,
+          "mean_tokens": 32.0,
+          "wall_s": 73.5534473239677,
+          "ollama_memory": "1.804GiB / 15.34GiB",
+          "client_mean_s": 1.8387889697245554,
+          "prometheus_mean_s": 1.8307360999999998,
+          "prometheus_count": 40.0,
+          "prometheus_count_matches": true
+        },
+        {
+          "users": 2,
+          "requests": 40,
+          "ok": 40,
+          "errors": 0,
+          "status_codes": [
+            200
+          ],
+          "p50_s": 3.6531277240719646,
+          "p95_s": 3.8040530170546845,
+          "p95_sample_size": 40,
+          "requests_per_s": 0.5698889684119571,
+          "tokens_per_s": 18.236446989182628,
+          "mean_tokens": 32.0,
+          "wall_s": 70.18911089200992,
+          "ollama_memory": "1.812GiB / 15.34GiB",
+          "client_mean_s": 3.4630608695588307,
+          "prometheus_mean_s": 3.453142500000003,
+          "prometheus_count": 40.0,
+          "prometheus_count_matches": true
+        },
+        {
+          "users": 4,
+          "requests": 40,
+          "ok": 40,
+          "errors": 0,
+          "status_codes": [
+            200
+          ],
+          "p50_s": 6.674557177058887,
+          "p95_s": 7.5935038770549,
+          "p95_sample_size": 40,
+          "requests_per_s": 0.5733989258807661,
+          "tokens_per_s": 18.348765628184516,
+          "mean_tokens": 32.0,
+          "wall_s": 69.75946098705754,
+          "ollama_memory": "1.81GiB / 15.34GiB",
+          "client_mean_s": 6.700145097161294,
+          "prometheus_mean_s": 6.689285999999996,
+          "prometheus_count": 40.0,
+          "prometheus_count_matches": true
+        },
+        {
+          "users": 8,
+          "requests": 64,
+          "ok": 64,
+          "errors": 0,
+          "status_codes": [
+            200
+          ],
+          "p50_s": 14.750837823026814,
+          "p95_s": 15.173061200999655,
+          "p95_sample_size": 64,
+          "requests_per_s": 0.5543224161493552,
+          "tokens_per_s": 17.738317316779366,
+          "mean_tokens": 32.0,
+          "wall_s": 115.45627262303606,
+          "ollama_memory": "1.811GiB / 15.34GiB",
+          "client_mean_s": 13.637223564235683,
+          "prometheus_mean_s": 13.624947828124998,
+          "prometheus_count": 64.0,
+          "prometheus_count_matches": true
+        },
+        {
+          "users": 16,
+          "requests": 128,
+          "ok": 128,
+          "errors": 0,
+          "status_codes": [
+            200
+          ],
+          "p50_s": 29.619033512484748,
+          "p95_s": 30.079641636111774,
+          "p95_sample_size": 128,
+          "requests_per_s": 0.5485700802112107,
+          "tokens_per_s": 17.55424256675874,
+          "mean_tokens": 32.0,
+          "wall_s": 233.33390685601626,
+          "ollama_memory": "1.812GiB / 15.34GiB",
+          "client_mean_s": 27.481427230096415,
+          "prometheus_mean_s": 27.464799398437496,
+          "prometheus_count": 128.0,
+          "prometheus_count_matches": true
+        }
+      ],
+      "degradation_point": 2,
+      "why": "throughput +5%, p95 latency +88% vs 1 users"
+    }
+  ],
+  "verdict": "degrades at 2 users"
+}

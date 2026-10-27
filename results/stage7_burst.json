@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-26 22:08",
+  "runs": [
+    {
+      "run": 1,
+      "limit": 5,
+      "sent": 20,
+      "ok": 5,
+      "refused_429": 15,
+      "other": [],
+      "verdict": "holds"
+    },
+    {
+      "run": 2,
+      "limit": 5,
+      "sent": 20,
+      "ok": 5,
+      "refused_429": 15,
+      "other": [],
+      "verdict": "holds"
+    },
+    {
+      "run": 3,
+      "limit": 5,
+      "sent": 20,
+      "ok": 5,
+      "refused_429": 15,
+      "other": [],
+      "verdict": "holds"
+    }
+  ]
+}

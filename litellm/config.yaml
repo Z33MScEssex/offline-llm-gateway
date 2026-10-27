@@ -1,0 +1,17 @@
+# LiteLLM gateway config. Pattern from LiteLLM's Ollama provider page ("model_list" with api_base)
+# and the virtual keys page (general_settings.master_key).
+model_list:
+  - model_name: qwen3-cpu  # the name clients ask for; hides which server and model sit behind it
+    litellm_params:
+      model: "ollama_chat/qwen3:1.7b"  # ollama_chat = Ollama's /api/chat endpoint; model chosen in research Topic 0
+      api_base: "http://ollama:11434"  # the ollama service inside the compose network
+      # Not from the docs: found by testing 2026-10-26. Qwen3 thinks out loud by default
+      # (464 tokens, 29 s for "say hello in five words"); this makes off the default (5 tokens, 0.7 s).
+      think: false
+
+litellm_settings:
+  callbacks:
+    - prometheus  # expose request, error and latency metrics on /metrics (LiteLLM's Prometheus page, Quick Start)
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY  # read the admin key from the environment, never from this file

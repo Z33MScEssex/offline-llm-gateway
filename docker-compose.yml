@@ -1,0 +1,139 @@
+# Offline LLM Gateway: the LiteLLM gateway, its Postgres database, and an Ollama model server.
+# Based on LiteLLM's docker/docker-compose.quickstart.yml and Ollama's docs/docker.mdx ("CPU only").
+# Start: create .env (see README), then `docker compose up -d --wait` (returns once every service is healthy).
+# Offline: every service sits only on the "offline" network, which is internal (no route out of
+# this machine). The laptop reaches the gateway at its fixed address, http://172.30.0.10:4000.
+services:
+  litellm:
+    image: docker.litellm.ai/berriai/litellm:v1.90.2  # pinned, as LiteLLM's deploy page advises; never :latest
+    # No published port: Docker cannot publish a port from an internal network (tested 2026-10-26).
+    # Instead the laptop calls the gateway at its fixed address below; the docs say processes on the
+    # Docker host can reach an internal network, and nothing beyond the host can.
+    networks:
+      offline:
+        ipv4_address: 172.30.0.10  # fixed, so the address in the README never changes
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set it in .env}  # admin key: creates and revokes user keys
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?set it in .env}  # encrypts credentials stored in the database; never regenerate
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD:-litellm}@db:5432/litellm  # virtual keys need a database
+      # LiteLLM fetches these from GitHub by default. Use the copies bundled in the image instead,
+      # so start-up never waits on a fetch that cannot succeed. The network is what guarantees
+      # offline; these just stop LiteLLM trying.
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      LITELLM_LOCAL_BLOG_POSTS: "True"
+      LITELLM_LOCAL_WHATS_NEW: "True"
+      LITELLM_LOCAL_POLICY_TEMPLATES: "true"
+      LITELLM_LOCAL_ANTHROPIC_BETA_HEADERS: "True"
+      LITELLM_LOCAL_AUTOROUTER_PRESETS: "True"
+      LITELLM_TELEMETRY_DISABLED: "true"  # force usage telemetry off
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro  # models and settings, kept in the repo
+    command: ["--config", "/app/config.yaml"]  # tell LiteLLM to load that file
+    healthcheck:
+      # /health/readiness is the probe path LiteLLM's deploy page uses. The image has no curl,
+      # so the request is made with the Python that ships inside it.
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/readiness', timeout=5)"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # first start runs database migrations; failures in this window don't count
+      start_interval: 5s  # but check often during it, so `--wait` returns as soon as it is ready
+    depends_on:
+      db:
+        condition: service_healthy  # wait until Postgres accepts connections
+      ollama:
+        condition: service_healthy  # the model server must answer before requests are routed to it
+
+  db:
+    image: postgres:16  # same database image as LiteLLM's quickstart
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-litellm}
+      POSTGRES_DB: litellm
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]  # ready when Postgres answers
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # keys and usage logs survive a restart
+    networks: [offline]
+
+  ollama:
+    image: ollama/ollama:0.30.6  # same version as the laptop's Ollama, so it reads the same model files
+    environment:
+      # Requests one model works on at the same time. Ollama's default is 1 (Ollama FAQ).
+      # Stage 7 compares 1 and 4: OLLAMA_NUM_PARALLEL=4 docker compose up -d --wait
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}
+    volumes:
+      # The laptop's already-downloaded models, mounted read-only: no download at start-up,
+      # and the container cannot change them. Stage 5 relies on weights arriving this way.
+      - ${OLLAMA_MODELS_DIR:-/usr/share/ollama/.ollama/models}:/root/.ollama/models:ro
+    # No ports: Ollama is reachable only from inside the stack, so every call goes through the gateway.
+    healthcheck:
+      test: ["CMD", "ollama", "list"]  # the CLI asks the running server for its models; fails if it is not up
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [offline]
+
+  prometheus:
+    image: prom/prometheus:v3.15.0  # pinned
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro  # scrape config, kept in the repo
+      - prometheus_data:/prometheus  # metric history survives a restart
+    secrets:
+      - source: litellm_master_key
+        uid: "65534"  # the image runs as "nobody", so the secret file must belong to that user
+        gid: "65534"
+        mode: 0o400  # readable by that user only
+      # Compose warns that uid/gid/mode are "ignored outside Swarm mode". Measured 2026-10-26 on
+      # Compose v5.6.1: they are applied (file is nobody, 0400). Without them it is root, 0444.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9090/-/ready"]  # 200 once it can answer queries
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      litellm:
+        condition: service_healthy  # nothing to scrape until the gateway is up
+    networks:
+      offline:
+        ipv4_address: 172.30.0.20  # fixed, so the laptop can open the Prometheus UI at http://172.30.0.20:9090
+
+  tests:
+    # Runs the acceptance tests from inside the stack: `docker compose run --rm tests`.
+    # The "test" profile keeps it out of a normal `docker compose up`.
+    profiles: ["test"]
+    build:
+      context: .  # the repo root, so the Dockerfile can copy requirements-dev.txt
+      dockerfile: tests/Dockerfile
+    environment:
+      GATEWAY_URL: http://litellm:4000  # the gateway's name on the compose network
+      OFFLINE_EXPECTED: "1"  # switches on tests/test_offline.py, which only means something in here
+      PROMETHEUS_URL: http://prometheus:9090  # test_metrics.py asks Prometheus what it scraped
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set it in .env}  # the tests create keys with it
+    volumes:
+      - ./tests:/tests:ro  # the test files, read-only, so edits need no image rebuild
+    command: ["python", "-m", "pytest", "-v", "-p", "no:cacheprovider"]  # no cache: the folder is read-only
+    networks: [offline]  # the tests see exactly what the services see: no internet
+    depends_on:
+      litellm:
+        condition: service_healthy  # never test a gateway that is still starting
+      prometheus:
+        condition: service_healthy  # the metrics test needs Prometheus answering
+
+networks:
+  offline:
+    internal: true  # "an externally isolated network": no route to the internet or the LAN
+    ipam:
+      config:
+        - subnet: "172.30.0.0/24"  # fixed, so the gateway's address is fixed
+
+secrets:
+  litellm_master_key:
+    environment: "LITELLM_MASTER_KEY"  # compose writes the key from .env into a file; it never sits in the repo
+
+volumes:
+  postgres_data:
+  prometheus_data:

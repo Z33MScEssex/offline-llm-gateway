@@ -4,3 +4,7 @@ data/
 *.safetensors
 __pycache__/
 .env
+docs/project_plan.md
+docs/reviews/
+ci_models/
+.pytest_cache/

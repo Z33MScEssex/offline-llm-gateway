@@ -1,0 +1,180 @@
+# Stage 9: the same stack as docker-compose.yml, as Kubernetes objects.
+# Patterns from the Kubernetes docs examples: nginx-deployment.yaml (Deployment), the Service page,
+# volumes page "hostPath configuration example", pod-secret-envFrom.yaml, http-liveness.yaml (probes),
+# network-policy-default-deny-egress.yaml and "Targeting a Namespace by its name".
+# Every image is loaded into the cluster from the laptop (scripts/k8s_up.sh), and
+# imagePullPolicy: Never means the cluster never pulls one from the internet.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm-gateway
+---
+# Offline rule: pods may talk to each other and to the cluster DNS, and to nothing else.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: offline-egress
+  namespace: llm-gateway
+spec:
+  podSelector: {}  # every pod in the namespace
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - podSelector: {}  # any pod in this namespace
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system  # the cluster DNS lives here
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+  namespace: llm-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+      - name: db
+        image: postgres:16
+        imagePullPolicy: Never
+        env:
+        - {name: POSTGRES_USER, value: litellm}
+        - {name: POSTGRES_PASSWORD, value: litellm}  # reachable only inside the namespace
+        - {name: POSTGRES_DB, value: litellm}
+        ports:
+        - containerPort: 5432
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-U", "litellm"]
+          periodSeconds: 5
+        # No persistent volume: data goes when the pod does. Enough for a local test cluster.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: llm-gateway
+spec:
+  selector:
+    app: db
+  ports:
+  - port: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: llm-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      containers:
+      - name: ollama
+        image: ollama/ollama:0.30.6
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 11434
+        volumeMounts:
+        - mountPath: /root/.ollama/models
+          name: models
+          readOnly: true
+        readinessProbe:
+          exec:
+            command: ["ollama", "list"]
+          periodSeconds: 5
+      volumes:
+      - name: models
+        hostPath:
+          path: /models  # the node's copy of the laptop folder (k8s/kind-config.yaml)
+          type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama  # same name as in compose, so litellm/config.yaml works unchanged
+  namespace: llm-gateway
+spec:
+  selector:
+    app: ollama
+  ports:
+  - port: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm
+  namespace: llm-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: litellm
+  template:
+    metadata:
+      labels:
+        app: litellm
+    spec:
+      containers:
+      - name: litellm
+        image: docker.litellm.ai/berriai/litellm:v1.90.2
+        imagePullPolicy: Never
+        args: ["--config", "/app/config.yaml"]
+        envFrom:
+        - secretRef:
+            name: litellm-env  # LITELLM_MASTER_KEY and LITELLM_SALT_KEY, made from .env
+        env:
+        - {name: DATABASE_URL, value: "postgresql://litellm:litellm@db:5432/litellm"}
+        - {name: LITELLM_LOCAL_MODEL_COST_MAP, value: "True"}
+        - {name: LITELLM_LOCAL_BLOG_POSTS, value: "True"}
+        - {name: LITELLM_LOCAL_WHATS_NEW, value: "True"}
+        - {name: LITELLM_LOCAL_POLICY_TEMPLATES, value: "true"}
+        - {name: LITELLM_LOCAL_ANTHROPIC_BETA_HEADERS, value: "True"}
+        - {name: LITELLM_LOCAL_AUTOROUTER_PRESETS, value: "True"}
+        - {name: LITELLM_TELEMETRY_DISABLED, value: "true"}
+        ports:
+        - containerPort: 4000
+        volumeMounts:
+        - mountPath: /app/config.yaml
+          name: config
+          subPath: config.yaml  # one file from the ConfigMap, not a whole folder
+        readinessProbe:
+          httpGet:
+            path: /health/readiness  # LiteLLM's own probe path (its deploy page)
+            port: 4000
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: litellm-config  # made from litellm/config.yaml by scripts/k8s_up.sh
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm
+  namespace: llm-gateway
+spec:
+  selector:
+    app: litellm
+  ports:
+  - port: 4000

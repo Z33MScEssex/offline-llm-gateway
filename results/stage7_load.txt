@@ -1,0 +1,47 @@
+Stage 7: load test, measured 2026-10-26
+Method and pass rules fixed before running: docs/stage7_plan.md (with its amendment, made after a
+read-only second review found seven holes). Raw numbers: stage7_load_parallel1.json,
+stage7_load_parallel4.json, stage7_burst.json.
+
+Every request: same prompt, 32 output tokens (mean was exactly 32.0 at every level, so the work per
+request really was equal), thinking off, through a normal user key. Two rounds per curve.
+
+PART A: Ollama default, OLLAMA_NUM_PARALLEL=1        VERDICT: degrades at 2 users (both rounds)
+  users  requests  p50 s   p95 s   req/s   tokens/s       (round 1; round 2 within a few %)
+    1       40      1.8     2.1    0.53     17.1
+    2       40      3.4     4.0    0.57     18.1
+    4       40      6.8     7.7    0.57     18.3
+    8       64     14.5    16.5    0.55     17.6
+   16      128     30.2    32.2    0.53     17.0
+  What happened: throughput is flat from 1 user; latency grows in line with the number waiting.
+  Why: Ollama's FAQ says it works on OLLAMA_NUM_PARALLEL requests at a time, default 1, and queues
+  the rest. So a second user adds no capacity, only a place in the queue. Predicted before running.
+  No errors at any level: requests queue, they are not dropped (the queue limit is 512).
+
+PART B: OLLAMA_NUM_PARALLEL=4, nothing else changed  VERDICT: degrades at 8 users (both rounds)
+  users  requests  p50 s   p95 s   req/s   tokens/s
+    1       40      1.8     2.0    0.55     17.7
+    2       40      3.1     3.3    0.68     21.7
+    4       40      4.6     5.6    0.84     26.7
+    8       64     10.0    10.6    0.84     26.7
+   16      128     20.3    20.6    0.81     25.9
+  Ollama memory: 1.8 GB at parallel 1, 3.1 GB at parallel 4.
+  What it means: working on 4 at once raises total throughput about 1.5x (0.55 to 0.84 req/s) and
+  cuts the wait at 16 users from about 30 s to 20 s, for 1.3 GB more RAM. Single-user speed is the
+  same. It is 1.5x, not 4x, because the 4 requests share the same 12 CPU threads; past 4 users the
+  extra ones queue again, which is why it degrades at 8. [The 1.5x is measured; the reason is
+  reasoning, not sourced.]
+
+PART C: rate limit under a burst (key allowed 5 per minute, 20 requests released together)
+  burst 1: 5 succeeded, 15 refused (429)  holds
+  burst 2: 5 succeeded, 15 refused (429)  holds
+  burst 3: 5 succeeded, 15 refused (429)  holds
+  The limit does not leak when requests arrive at the same moment.
+
+PART D: client vs Prometheus, same requests (counts matched at all 20 levels)
+  Mean latency agrees to within 0.01 to 0.03 s at every level, client always slightly higher, as
+  expected (it includes the hop to the gateway). So the gateway's own latency metric can be trusted
+  for monitoring.
+
+Limitations: the client ran on the same laptop as the model (its threads mostly wait on sockets).
+One prompt shape only (short prompt, 32-token answer); longer answers would shift the numbers.

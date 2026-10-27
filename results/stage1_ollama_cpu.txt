@@ -1,0 +1,13 @@
+An API gateway is a service that acts as a central point for handling requests to applications, managing authentication, rate limiting, and routing requests to the appropriate backend services.
+---
+model: qwen3:1.7b
+total time: 9.84 s (of which loading the model: 5.38 s)
+answer: 34 tokens in 3.44 s = 9.9 tokens per second
+PASS: got a reply over HTTP
+
+An API gateway is a service that acts as a central point for handling requests to distributed microservices, managing authentication, rate limiting, and routing requests to the appropriate backend service.
+---
+model: qwen3:1.7b
+total time: 2.22 s (of which loading the model: 0.22 s)
+answer: 36 tokens in 1.94 s = 18.6 tokens per second
+PASS: got a reply over HTTP

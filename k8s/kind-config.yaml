@@ -1,0 +1,10 @@
+# Stage 9: a one-node local Kubernetes cluster (kind). Pattern from kind's config-with-mounts.yaml.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraMounts:
+  # The laptop's Ollama model folder, read-only, as in the compose stack: nothing downloads.
+  - hostPath: /usr/share/ollama/.ollama/models
+    containerPath: /models
+    readOnly: true

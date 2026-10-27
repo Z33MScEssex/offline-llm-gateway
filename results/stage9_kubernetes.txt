@@ -1,0 +1,51 @@
+Stage 9 (stretch): the stack on a local Kubernetes cluster, measured 2026-10-26
+A local proof of concept, not a hardened deployment: see "Limits" at the end.
+kind v0.33.0 (one node, Kubernetes v1.37.0). Run: scripts/k8s_up.sh. Remove: kind delete cluster --name llm-gateway
+
+Same images, same LiteLLM config, same tests as compose. Model weights mounted read-only from the
+laptop (kind extraMounts + hostPath). Every image loaded from the laptop with imagePullPolicy: Never,
+so the cluster pulls nothing. kubectl not installed on the laptop: the kind node's own is used.
+
+ACCEPTANCE: stage 3 tests pass inside the cluster
+  Job "tests": 9 passed in 21.6 s (4 gateway + 5 offline). Whole script, cluster already created: 195 s.
+
+Offline, Kubernetes style: a NetworkPolicy allows egress only to pods in the same namespace (any
+port) and to the cluster DNS. What was measured is below; it is a sample, not proof of every route.
+  Control, pod in a namespace with no policy ........... reached 1.1.1.1:443
+  Pod in the gateway namespace, after 1 s or more ...... blocked (tested at 1, 3, 5, 10 s)
+  Test Job: 3 public addresses ......................... blocked
+So kind's built-in network (kindnet) does enforce NetworkPolicy.
+
+Found and fixed: DNS leak.
+  With the policy alone, a pod could still resolve pypi.org. The pod cannot connect out, but the
+  cluster DNS server (CoreDNS) forwards outside names to the internet for it, and DNS can carry data
+  out. Removed CoreDNS's `forward . /etc/resolv.conf` block (Kubernetes "Customizing DNS Service"
+  page): test_public_names_do_not_resolve went from FAILED to PASSED.
+  Checked after the change: pypi.org and github.com fail in 4 to 19 ms (no hang); litellm and
+  kubernetes.default.svc.cluster.local still resolve; every kube-system pod still Running.
+  It is cluster-wide, so it suits only a cluster meant to resolve nothing outside itself.
+
+Found, NOT fixed (known limitation): a startup window.
+  A brand-new pod in the protected namespace that connects immediately REACHED 1.1.1.1:443. Waiting
+  1 s first, it was blocked. The policy is applied to a new pod a moment after the pod starts.
+  The test Job passed only because Python takes longer than that to start.
+  Why compose has no such gap: there the network itself has no route out, so timing does not matter.
+  A real fix lives below Kubernetes (a node or CNI with no route out), beyond this stretch goal.
+
+Limits (local proof of concept):
+  - No Prometheus on the cluster, so the 3 metrics tests are not run there (9 tests, not 12).
+  - Database has no persistent volume: data is lost when its pod goes.
+  - Database user and password are the fixed default `litellm` (as in the compose stack), set as
+    plain environment values. Fine on a closed test box; a real deployment would generate one and
+    pass it through a Secret.
+  - No CPU or memory requests/limits, no security context on the pods.
+  - Pod-to-pod traffic inside the namespace is not narrowed to the ports each service needs.
+  - The startup window above.
+Secrets: .env is never copied to the node. The script builds the Secret on the laptop and streams
+it to kubectl, so the keys are stored in the cluster as a Secret and nowhere on the node's disk
+(checked: no key file under the node's staging folder after a run).
+
+Problems hit on the way, and fixes:
+  kind load docker-image failed: "content digest ... not found". kind's known-issues page: Docker's
+    containerd image store. Fixed with its documented workaround (save linux/amd64 only, load the archive).
+  docker cp into the node's /tmp failed: the node mounts /tmp as tmpfs. Files go to /var/lib/gw.

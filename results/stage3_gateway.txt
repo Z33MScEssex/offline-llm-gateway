@@ -1,0 +1,19 @@
+Stage 3: LiteLLM gateway in front of Ollama, measured 2026-10-26
+Stack: litellm v1.90.2 + postgres:16 + ollama 0.30.6 (docker compose), model qwen3:1.7b on CPU
+
+Acceptance tests (python3 -m pytest tests/ -v): 4 passed in 2.67 s
+  valid key gets a reply ............................ PASS (200)
+  bad key is refused ................................ PASS (401)
+  key cannot use a model it was not given ........... PASS (refused)
+  going over the rate limit gets 429 ................ PASS
+
+Proof the rate-limit test can fail:
+  key with no limit, 3 requests back to back ....... 200, 200, 200
+  key with rpm_limit 2, 3 requests back to back .... 200, 200, 429
+  gateway stopped, test suite ...................... 4 failed
+
+Qwen3 "thinking", one call through the gateway ("Say hello in five words."):
+  thinking on (model default) ...................... 464 tokens, 29.1 s
+  thinking off (think: false in config) ............ 7 tokens, 0.75 s
+  What it means: thinking multiplies latency about 40 times for a short answer,
+  so the gateway switches it off by default.

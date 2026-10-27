@@ -1,0 +1,18 @@
+Stage 4: one-command rebuild from a clean copy, measured 2026-10-26
+Method: copied only the files git would publish (10 files: no .env, no database, no private
+docs) into an empty folder, then ran the three README commands exactly as written.
+
+  1. printf ... > .env             new random master and salt keys
+  2. docker compose up -d --wait   db, ollama, litellm all reported healthy
+  3. docker compose run --rm tests 4 passed in 4.95 s
+
+Cold run (builds the test image, fresh database): 60 s from empty folder to 4 passed
+Warm run (images built, database kept):           32 s to healthy, 39 s including tests
+Normal `docker compose up` starts db, ollama, litellm only; the tests service stays out (profile "test").
+Without .env, compose refuses to start: "required variable LITELLM_MASTER_KEY is missing a value".
+
+Found by doing it, and fixed before the passing run:
+  - The first README said `python3 -m pytest`. This laptop's python3 (3.10) has no pytest and no
+    venv module, so a fresh machine would fail at step 3. The tests now run in their own small
+    container (tests/Dockerfile: python:3.12-slim + pytest 9.1.1), so the host needs only Docker
+    and Ollama.
