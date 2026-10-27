@@ -8,6 +8,15 @@ model_list:
       # Not from the docs: found by testing 2026-10-26. Qwen3 thinks out loud by default
       # (464 tokens, 29 s for "say hello in five words"); this makes off the default (5 tokens, 0.7 s).
       think: false
+  - model_name: qwen3-gpu  # the same model served by vLLM on a GPU, behind the same keys and limits
+    litellm_params:
+      model: "hosted_vllm/Qwen/Qwen3-1.7B"  # hosted_vllm/ = vLLM's OpenAI-style server (LiteLLM's vLLM provider page)
+      api_base: os.environ/VLLM_API_BASE  # where vLLM answers; set by compose, so the address is not fixed in this file
+      # Qwen3 thinks out loud by default. Qwen's vLLM page switches it off per request with
+      # chat_template_kwargs; a provider-specific setting here is sent with every request
+      # (LiteLLM's provider-specific params page, "via Config"), so off becomes the default.
+      chat_template_kwargs:
+        enable_thinking: false
 
 litellm_settings:
   callbacks:

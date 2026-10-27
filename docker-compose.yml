@@ -26,6 +26,7 @@ services:
       LITELLM_LOCAL_ANTHROPIC_BETA_HEADERS: "True"
       LITELLM_LOCAL_AUTOROUTER_PRESETS: "True"
       LITELLM_TELEMETRY_DISABLED: "true"  # force usage telemetry off
+      VLLM_API_BASE: ${VLLM_API_BASE:-http://vllm:8000/v1}  # the GPU model server (profile "gpu" below)
     volumes:
       - ./litellm/config.yaml:/app/config.yaml:ro  # models and settings, kept in the repo
     command: ["--config", "/app/config.yaml"]  # tell LiteLLM to load that file
@@ -75,6 +76,39 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks: [offline]
+
+  vllm:
+    # GPU model server. Only starts with: docker compose --profile gpu up -d --wait
+    # Not yet run under Compose: the laptop has no NVIDIA GPU and Colab has no Docker. The same
+    # route (gateway -> vLLM) was tested on a Colab T4 without Docker, see results/stage2_gateway_gpu.txt.
+    image: vllm/vllm-openai:v0.32.0  # pinned to the vLLM version measured in stage 2
+    profiles: ["gpu"]  # a machine without a GPU never tries to start it
+    command: ["--model", "Qwen/Qwen3-1.7B", "--max-model-len", "4096"]  # vLLM's Docker page: engine args go after the image
+    environment:
+      HF_HUB_OFFLINE: "1"  # no calls to Hugging Face; load only the cached weights (huggingface_hub docs)
+    volumes:
+      # Weights downloaded beforehand on a connected machine (for example `hf download Qwen/Qwen3-1.7B`)
+      # and carried across, along with the image itself (docker save / docker load). Read-only, as for Ollama.
+      - ${HF_CACHE_DIR:-${HOME}/.cache/huggingface}:/root/.cache/huggingface:ro
+    # vLLM's Docker page: use ipc=host or a shared-memory size. shm_size keeps the container's own
+    # memory namespace instead of sharing the host's. 2gb is my choice, not from the docs.
+    shm_size: "2gb"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia  # Docker's Compose GPU support page
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      # /v1/models answers once the model is loaded (the endpoint stage 2 waits on)
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/models', timeout=5)"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 300s  # stage 2 took 210 s to be ready, most of it loading and warming up
+      start_interval: 5s
     networks: [offline]
 
   prometheus:

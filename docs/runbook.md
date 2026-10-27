@@ -99,5 +99,8 @@ Ollama tries to create its layout and cannot.
   one with the master key: `POST /key/generate`.
 - **429 from the gateway.** That key's requests-per-minute limit is working. Wait a minute, or give
   the key a higher `rpm_limit`.
+- **500 for `qwen3-gpu`: "Cannot connect to host vllm:8000".** The GPU model server is not
+  running. It only starts on a machine with an NVIDIA GPU, with `docker compose --profile gpu up -d --wait`.
+  On the laptop, use `qwen3-cpu`. Seen on 2026-10-27; the error took about 5 s to come back.
 - **`check_offline.sh` says "control ... could NOT reach the internet".** The laptop itself is
   offline, so the check cannot prove anything. It is not a failure of the stack.

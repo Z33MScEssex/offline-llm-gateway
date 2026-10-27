@@ -1,0 +1,55 @@
+Stage 2b: vLLM behind the LiteLLM gateway on a Colab T4
+Run 2026-10-27, Tesla T4, vLLM 0.32.0, LiteLLM 1.90.2 (pip, same version as the Docker image).
+Code: colab/gateway_gpu.py with this repo's litellm/config.yaml. Raw numbers: stage2_gateway_gpu.json.
+
+What was run
+  vLLM and the gateway on the same Colab runtime. The gateway used the repo's config file
+  unchanged, so qwen3-gpu was routed by the same entry the Compose stack uses.
+  tests/test_gpu.py through the gateway: 2 of 2 pass (answers; thinking off by default).
+  The same question straight to vLLM and through the gateway gave 32 tokens both ways,
+  so the gateway passes the thinking-off setting on and both routes do the same work.
+  Then the stage 7 load test (same prompt, 32 tokens, 1 to 64 users) four times: direct and
+  gateway in round 1, gateway and direct in round 2, so neither route always went first.
+  4,320 requests in all, 0 errors.
+
+What the gateway costs (mean of the two rounds; direct vs through the gateway)
+  users  median s        p95 s           req/s          median   p95      req/s
+      1  0.680 / 0.676   0.756 / 0.715    1.5 /  1.5      -4 ms   -41 ms   +1%
+      2  0.580 / 0.582   0.585 / 0.591    3.4 /  3.4      +2 ms    +6 ms    0%
+      4  0.602 / 0.644   0.615 / 0.651    6.6 /  6.2     +42 ms   +36 ms   -6%
+      8  0.644 / 0.686   0.663 / 0.747   12.4 / 11.3     +42 ms   +84 ms   -8%
+     16  0.746 / 0.775   0.773 / 0.893   21.2 / 19.8     +30 ms  +120 ms   -7%
+     32  0.969 / 0.979   1.002 / 1.251   32.7 / 30.8     +11 ms  +249 ms   -6%
+     64  1.170 / 1.239   1.251 / 1.719   53.1 / 47.3     +69 ms  +468 ms  -11%
+  Both rounds agree at 64 users: gateway p95 1.81 s and 1.63 s, direct 1.25 s both times.
+  No degradation by the stage 7 rule on any of the four curves.
+
+What it means
+  With one or two users the gateway costs nothing measurable. From 4 users it adds about
+  30 to 70 ms to a typical answer and takes 6 to 11% off throughput.
+  The bigger effect is on the slowest answers. Their extra wait grows with the number of
+  users, to almost half a second at 64. The median barely moves, so most requests pass
+  straight through and a few wait behind others inside the gateway.
+  On the CPU stack this cost was invisible, because each answer took seconds. On a GPU the
+  model answers in about 0.6 s, so the gateway becomes a visible part of the total.
+
+Likely cause, not measured
+  The gateway ran as a single process here. Every request goes through it for the key
+  check, routing and metrics, so under heavy load some requests queue there. Running more
+  gateway processes is the usual fix for that; it was not tested.
+
+Limits
+  Master key only: Colab has no database, so per-user keys (a database lookup per request)
+  were not in the measured path. The Compose stack would add that.
+  Gateway and vLLM shared one machine, so they competed for its CPU. On separate machines
+  the gateway's cost could be lower.
+  The vllm service in docker-compose.yml has not been run under Compose. The laptop has no
+  NVIDIA GPU and Colab has no Docker.
+
+Problems hit getting it to run (fixed in colab/gateway_gpu.py)
+  python -m venv failed on Colab: its Python has no ensurepip. virtualenv works.
+  The pip package litellm[proxy] does not include prometheus_client, which the Docker image
+  has and the config's Prometheus callback needs. The gateway crashed at start until it was
+  installed: "ModuleNotFoundError: No module named 'prometheus_client'".
+  When the gateway failed to start, the script left vLLM running and holding the GPU. The
+  script now stops both servers however it ends.
