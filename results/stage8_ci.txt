@@ -1,4 +1,4 @@
-Stage 8: CI workflow, prepared 2026-10-26. NOT YET RUN ON GITHUB (not committed or pushed: Zee's step).
+Stage 8: CI workflow, prepared 2026-10-26. RUN ON GITHUB 2026-10-27: every push since has passed, in about 3 minutes.
 
 .github/workflows/ci.yml: on every push and pull request, checkout, restore the cached model (or
 download it once), create .env, docker compose up -d --wait, run the 12 tests inside the offline
@@ -26,4 +26,4 @@ Read-only second review (6 points) and what was done:
     world-readable inside the container and Prometheus can still read it; if it could not,
     test_metrics.py fails, so CI cannot pass green by mistake.
 
-To do on first push: watch the run, and confirm steps 1 and 6 on the real runner.
+Confirmed on the first push (2026-10-27): the runner reaches 172.30.0.10 (point 1), and the Compose secret works on its Compose version (point 6): test_metrics.py passed.
