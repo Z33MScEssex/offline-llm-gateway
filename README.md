@@ -1,6 +1,6 @@
 # Offline LLM Gateway
 
-**Status: in progress.** Started October 2026. This README is updated as each stage is built.
+**Status: all 10 stages done (October 2026).** Known gaps are listed under each section and in `results/`.
 
 A self-hosted large language model (LLM) service that works with no route to the internet.
 Models are served locally, sit behind a gateway that controls who can use them and how much,
@@ -17,7 +17,7 @@ about the platform layer that makes a model usable in that setting:
 - watching how it performs, and knowing when it's struggling
 - proving the whole thing really does work offline
 
-## Planned architecture
+## Architecture
 
 ```
  client (curl, Python, app)
